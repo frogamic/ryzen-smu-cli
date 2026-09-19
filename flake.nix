@@ -13,13 +13,14 @@
       default = self.packages."${system}".ryzen-smu-cli;
       ryzen-smu-cli = pkgs.stdenv.mkDerivation (finalAttrs: {
         pname = "ryzen-smu-cli";
-        version = "0.0.1";
+        version = "0.0.2";
 
         src = ./src;
 
         makeFlags = [
           "LIBSMU_DIR=${pkgs.linuxPackages.ryzen-smu.src}/lib"
           "VERSION=${finalAttrs.version}"
+          "TARGET=${finalAttrs.meta.mainProgram}"
         ];
         installFlags = [ "PREFIX=${placeholder "out"}" ];
 
