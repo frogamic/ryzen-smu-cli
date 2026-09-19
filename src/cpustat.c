@@ -18,24 +18,18 @@ static const char *get_cpu_name() {
 	unsigned int eax, ebx, ecx, edx, l;
 	static char buffer[50] = {0}, *p;
 
-	VLOG(LOG_DEBUG, "Getting CPU name with __get_cpuid");
-	__get_cpuid(0x80000002, &eax, &ebx, &ecx, &edx);
-	append_u32_to_str(buffer, eax);
-	append_u32_to_str(buffer, ebx);
-	append_u32_to_str(buffer, ecx);
-	append_u32_to_str(buffer, edx);
-
-	__get_cpuid(0x80000003, &eax, &ebx, &ecx, &edx);
-	append_u32_to_str(buffer, eax);
-	append_u32_to_str(buffer, ebx);
-	append_u32_to_str(buffer, ecx);
-	append_u32_to_str(buffer, edx);
-
-	__get_cpuid(0x80000004, &eax, &ebx, &ecx, &edx);
-	append_u32_to_str(buffer, eax);
-	append_u32_to_str(buffer, ebx);
-	append_u32_to_str(buffer, ecx);
-	append_u32_to_str(buffer, edx);
+	VLOG(LOG_DEBUG, "Getting CPU name from cpuid leaves");
+	for (int i = 0x80000002; i <= 0x80000004; i += 1) {
+		VLOG(LOG_TRACE, "Reading cpuid leaf: %x", i);
+		if (!__get_cpuid(i, &eax, &ebx, &ecx, &edx)) {
+			VLOG(LOG_ERROR, "Could not read cpuid leaf: %x", i);
+		} else {
+			append_u32_to_str(buffer, eax);
+			append_u32_to_str(buffer, ebx);
+			append_u32_to_str(buffer, ecx);
+			append_u32_to_str(buffer, edx);
+		}
+	}
 
 	// Trim whitespaces
 	p = buffer;
@@ -53,7 +47,10 @@ static void get_cpu_cores(smu_obj_t *obj, unsigned int *cores, unsigned int *log
 			ccd_fuse1, ccd_fuse2;
 
 	VLOG(LOG_DEBUG, "Getting CPU core count with __get_cpuid");
-	__get_cpuid(0x00000001, &eax, &ebx, &ecx, &edx);
+	if (!__get_cpuid(0x00000001, &eax, &ebx, &ecx, &edx)) {
+		VLOG(LOG_ERROR, "Could not read cpuid info at leaf 0x00000001");
+		exit(-1);
+	}
 	fam = ((eax & 0xf00) >> 8) + ((eax & 0xff00000) >> 20);
 	model = ((eax & 0xf0000) >> 12) + ((eax & 0xf0) >> 4);
 	*logical_cores = (ebx >> 16) & 0xFF;
