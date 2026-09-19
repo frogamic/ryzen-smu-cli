@@ -1,0 +1,7 @@
+BasedOnStyle: LLVM
+TabWidth: 2
+UseTab: ForContinuationAndIndentation
+ColumnLimit: 120
+BreakBeforeBinaryOperators: All
+AlignAfterOpenBracket: false
+BinPackParameters: BinPack
