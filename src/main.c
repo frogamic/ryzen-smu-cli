@@ -93,11 +93,15 @@ int main(int argc, char **argv) {
 
 	if (args.do_reset) {
 		VLOG(LOG_DEBUG, "Reset all core offset");
-		reset_all_core_offset(&obj);
+		ret = reset_all_core_offset(&obj);
+		if (ret != SMU_Return_OK)
+			VLOG(LOG_ERROR, "Error resetting core offset: %s", smu_return_to_str(ret));
 	} else {
 		if (args.do_voffset) {
 			VLOG(LOG_DEBUG, "Set all core offset to %d", args.voffset);
-			set_all_core_offset(&obj, stat.cores, args.voffset);
+			ret = set_all_core_offset(&obj, stat.cores, args.voffset);
+			if (ret != SMU_Return_OK)
+				VLOG(LOG_ERROR, "Error setting core offset: %s", smu_return_to_str(ret));
 		}
 	}
 
