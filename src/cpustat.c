@@ -18,7 +18,7 @@ static const char *get_cpu_name() {
 	unsigned int eax, ebx, ecx, edx, l;
 	static char buffer[50] = {0}, *p;
 
-	VLOG(LOG_DEBUG, "Getting CPU name from cpuid leaves");
+	VLOG(LOG_DEBUG, "Getting CPU name from cpuid");
 	for (int i = 0x80000002; i <= 0x80000004; i += 1) {
 		VLOG(LOG_TRACE, "Reading cpuid leaf: %x", i);
 		if (!__get_cpuid(i, &eax, &ebx, &ecx, &edx)) {
@@ -46,7 +46,7 @@ static void get_cpu_cores(smu_obj_t *obj, unsigned int *cores, unsigned int *log
 	unsigned int smt, eax, ebx, ecx, edx, fam, model, ccds_present, ccds_disabled, ccds_down, core_fuse, core_fuse_addr,
 			ccd_fuse1, ccd_fuse2;
 
-	VLOG(LOG_DEBUG, "Getting CPU core count with __get_cpuid");
+	VLOG(LOG_TRACE, "Reading cpuid core count at leaf 0x00000001");
 	if (!__get_cpuid(0x00000001, &eax, &ebx, &ecx, &edx)) {
 		VLOG(LOG_ERROR, "Could not read cpuid info at leaf 0x00000001");
 		exit(-1);
@@ -63,7 +63,7 @@ static void get_cpu_cores(smu_obj_t *obj, unsigned int *cores, unsigned int *log
 		ccd_fuse2 += 0x40;
 	}
 
-	VLOG(LOG_DEBUG, "Reading CPU CCD fuses");
+	VLOG(LOG_TRACE, "Reading CPU CCD fuses");
 	if (smu_read_smn_addr(obj, ccd_fuse1, &ccds_present) != SMU_Return_OK
 			|| smu_read_smn_addr(obj, ccd_fuse2, &ccds_down) != SMU_Return_OK) {
 		VLOG(LOG_ERROR, "Failed to read CCD fuses");
@@ -79,7 +79,7 @@ static void get_cpu_cores(smu_obj_t *obj, unsigned int *cores, unsigned int *log
 	else
 		core_fuse_addr = (0x30081800 + 0x238) | (((ccds_present & 1) == 0) ? 0x2000000 : 0);
 
-	VLOG(LOG_DEBUG, "Reading CPU core fuse");
+	VLOG(LOG_TRACE, "Reading CPU core fuse");
 	if (smu_read_smn_addr(obj, core_fuse_addr, &core_fuse) != SMU_Return_OK) {
 		VLOG(LOG_ERROR, "Failed to read core fuse");
 		exit(-1);

@@ -6,10 +6,10 @@ static int verbosity = 0;
 
 void log_set_verbosity(int level) { verbosity = level; }
 
-const int log_get_verbosity() { return verbosity; }
+int log_get_verbosity() { return verbosity; }
 
-const char *log_get_verbosity_str() {
-	switch (verbosity) {
+static const char *log_get_level_str(int level) {
+	switch (level) {
 	case LOG_ERROR:
 		return "ERROR";
 	case LOG_WARN:
@@ -23,10 +23,13 @@ const char *log_get_verbosity_str() {
 	};
 };
 
+const char *log_get_verbosity_str() { return log_get_level_str(verbosity); }
+
 void vlog(int level, const char *fmt, ...) {
 	if (level > verbosity)
 		return;
 
+	fprintf(stderr, "%5s: ", log_get_level_str(level));
 	va_list ap;
 	va_start(ap, fmt);
 	vfprintf(stderr, fmt, ap);
