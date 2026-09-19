@@ -7,16 +7,16 @@
 #include "cpustat.h"
 #include "log.h"
 
-static void append_u32_to_str(char *buffer, unsigned int val) {
-	char tmp[12] = {0};
-
-	sprintf(tmp, "%c%c%c%c", val & 0xff, val >> 8 & 0xff, val >> 16 & 0xff, val >> 24 & 0xff);
-	strcat(buffer, tmp);
+static unsigned int append_u32_to_str(char *buffer, unsigned int buflen, unsigned int pos, unsigned int val) {
+	return pos
+				 + snprintf(
+						 buffer + pos, buflen - pos, "%c%c%c%c", val & 0xff, val >> 8 & 0xff, val >> 16 & 0xff, val >> 24 & 0xff);
 }
 
 static const char *get_cpu_name() {
 	unsigned int eax, ebx, ecx, edx, l;
 	static char buffer[50] = {0}, *p;
+	unsigned int pos = 0;
 
 	VLOG(LOG_DEBUG, "Getting CPU name from cpuid");
 	for (int i = 0x80000002; i <= 0x80000004; i += 1) {
@@ -24,12 +24,13 @@ static const char *get_cpu_name() {
 		if (!__get_cpuid(i, &eax, &ebx, &ecx, &edx)) {
 			VLOG(LOG_ERROR, "Could not read cpuid leaf: %x", i);
 		} else {
-			append_u32_to_str(buffer, eax);
-			append_u32_to_str(buffer, ebx);
-			append_u32_to_str(buffer, ecx);
-			append_u32_to_str(buffer, edx);
+			pos = append_u32_to_str(buffer, sizeof(buffer), pos, eax);
+			pos = append_u32_to_str(buffer, sizeof(buffer), pos, ebx);
+			pos = append_u32_to_str(buffer, sizeof(buffer), pos, ecx);
+			pos = append_u32_to_str(buffer, sizeof(buffer), pos, edx);
 		}
 	}
+	VLOG(LOG_TRACE, "Read %u characters from cpu name leaves", pos);
 
 	// Trim whitespaces
 	p = buffer;
@@ -37,7 +38,7 @@ static const char *get_cpu_name() {
 	while (isspace(p[l - 1]))
 		p[--l] = 0;
 	while (*p && isspace(*p))
-		++p, --l;
+		++p;
 
 	return buffer;
 }
