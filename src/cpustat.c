@@ -40,7 +40,7 @@ static const char *get_cpu_name() {
 	while (*p && isspace(*p))
 		++p;
 
-	return buffer;
+	return p;
 }
 
 static void get_cpu_cores(smu_obj_t *obj, unsigned int *cores, unsigned int *logical_cores) {

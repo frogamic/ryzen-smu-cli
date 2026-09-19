@@ -17,7 +17,13 @@ smu_return_val set_core_offset(smu_obj_t *obj, unsigned int core, int offset) {
 }
 
 smu_return_val set_all_core_offset(smu_obj_t *obj, unsigned int core_count, int offset) {
+	if (core_count == 0) {
+		VLOG(LOG_ERROR, "Core count must be greater than 0");
+		return SMU_Return_InvalidArgument;
+	}
+
 	smu_return_val err;
+
 	for (int i = 0; i < core_count; ++i) {
 		err = set_core_offset(obj, i, offset);
 		if (err != SMU_Return_OK) {
