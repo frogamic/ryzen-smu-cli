@@ -20,9 +20,9 @@ static const char *get_cpu_name() {
 
 	VLOG(LOG_DEBUG, "Getting CPU name from cpuid");
 	for (int i = 0x80000002; i <= 0x80000004; i += 1) {
-		VLOG(LOG_TRACE, "Reading cpuid leaf: %x", i);
+		VLOG(LOG_TRACE, "Reading cpuid leaf: %#x", i);
 		if (!__get_cpuid(i, &eax, &ebx, &ecx, &edx)) {
-			VLOG(LOG_ERROR, "Could not read cpuid leaf: %x", i);
+			VLOG(LOG_ERROR, "Could not read cpuid leaf: %#x", i);
 		} else {
 			pos = append_u32_to_str(buffer, sizeof(buffer), pos, eax);
 			pos = append_u32_to_str(buffer, sizeof(buffer), pos, ebx);
