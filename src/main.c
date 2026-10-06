@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Dominic Shelton <frogamic@protonmail.com>
+
 #include <argp.h>
 #include <stdio.h>
 #include <stdlib.h>

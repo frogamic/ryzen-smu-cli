@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Dominic Shelton <frogamic@protonmail.com>
+
 #ifndef VOLTAGE_H
 #define VOLTAGE_H
 
