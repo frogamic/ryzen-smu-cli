@@ -6,7 +6,6 @@
 #define MAX_SUPPORTED_OPS 10
 
 static const unsigned int feature_matrix_mp1[CODENAME_COUNT][MAX_SUPPORTED_OPS] = {
-		[CODENAME_MATISSE] = {0x35, 0x36, 0x48},
 		[CODENAME_VERMEER] = {0x35, 0x36, 0x48},
 };
 
