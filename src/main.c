@@ -17,35 +17,69 @@
 #define TARGET "rsmuctl"
 #endif
 
-static struct argp_option options[] = {{"verbose", 'v', 0, 0, "increase the verbosity level of the output"},
-		{"voffset", 'o', "VALUE", 0, "per-core voltage offset, expressed in millivolts"},
-		{"reset", 'r', 0, 0, "reset the voltage offset for all cores"}, {0}};
+#ifndef MAX_CORES
+#define MAX_CORES 128
+#endif
+
+static struct argp_option options[] = {{"verbose", 'v', 0, 0, "Increase the verbosity level of the output"},
+		{"voffset", 'o', "VALUE", 0,
+				"Set Curve-Optimizer voltage offset. "
+				"VALUE can be an offset applied to all cores, or a core number followed by : and the offset to specify an "
+				"offset for a core. "
+				"This argument can be passed multiple times to specify an all-core offset plus specific core offsets, e.g. "
+				"-o -10 -o 3:-25 -o 7:-25"},
+		{"reset", 'r', 0, 0, "Reset the voltage offset for all cores (applied before any other changes)"}, {0}};
+
+struct core_arg {
+	int do_voffset, voffset;
+};
 
 struct arguments {
-	int setters, do_reset, do_voffset, voffset, verbosity;
+	int core_count, do_reset, verbosity;
+	struct core_arg base_args;
+	struct core_arg core_args[MAX_CORES];
 };
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 	struct arguments *args = state->input;
+	int core, offset;
+	char junk;
+
+	// Only parse the verbosity on the first pass (before core_count is known)
+	if (args->core_count == 0) {
+		if (key == 'v')
+			args->verbosity += 1;
+		return 0;
+	}
 
 	switch (key) {
 	case 'o':
-		args->setters += 1;
-		args->voffset = atoi(arg);
-		args->do_voffset = 1;
+		VLOG(LOG_DEBUG, "Parsing offset arg %s", arg);
+		if (sscanf(arg, "%d:%d%c", &core, &offset, &junk) == 2) {
+			VLOG(LOG_TRACE, "Offset for core %d specified: %d", core, offset);
+			if (core < args->core_count && core >= 0) {
+				args->core_args[core].voffset = offset;
+				if (++(args->core_args[core].do_voffset) > 1)
+					argp_error(state, "Voltage offset for core %d passed more than once", core);
+			} else {
+				argp_error(state, "Invalid core %d, should be between 0 and %d", core, args->core_count - 1);
+			}
+		} else if (sscanf(arg, "%d%c", &offset, &junk) == 1) {
+			args->base_args.voffset = offset;
+			if (++(args->base_args.do_voffset) > 1)
+				argp_error(state, "All-core voltage offset passed more than once");
+			VLOG(LOG_TRACE, "All-core offset specified: %d", args->base_args.voffset);
+		} else {
+			argp_error(state, "Could not parse voffset arg: %s", arg);
+		}
 		break;
 
 	case 'r':
-		args->do_reset = 1;
+		if (++(args->do_reset) > 1)
+			argp_error(state, "Reset option was passed more than once");
 		break;
 
 	case 'v':
-		args->verbosity += 1;
-		break;
-
-	case ARGP_KEY_END:
-		if (args->do_reset && args->setters >= 1)
-			argp_error(state, "--reset/-r cannot be combined with any setter options.");
 		break;
 
 	default:
@@ -67,7 +101,8 @@ int main(int argc, char **argv) {
 	smu_return_val ret;
 	struct arguments args = {0};
 
-	argp_parse(&argp, argc, argv, 0, 0, &args);
+	// Parse just the verbosity arg early
+	argp_parse(&argp, argc, argv, 0, NULL, &args);
 
 	log_set_verbosity(args.verbosity);
 	VLOG(LOG_WARN, "Verbosity level set to %s", log_get_verbosity_str());
@@ -75,7 +110,7 @@ int main(int argc, char **argv) {
 	// Userspace library requires root permissions to access driver.
 	if (getuid() != 0 && geteuid() != 0) {
 		VLOG(LOG_ERROR, "Program must be run as root.");
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
 
 	// Initialize the library for use with the program.
@@ -83,11 +118,19 @@ int main(int argc, char **argv) {
 	ret = smu_init(&obj);
 	if (ret != SMU_Return_OK) {
 		VLOG(LOG_ERROR, "Error initializing userspace library: %s", smu_return_to_str(ret));
-		exit(-2);
+		exit(EXIT_FAILURE);
 	}
 
 	VLOG(LOG_DEBUG, "Getting CPU stats");
 	get_cpu_stat(&obj, &stat);
+
+	if (stat.cores <= 0 || stat.cores > MAX_CORES) {
+		VLOG(LOG_ERROR, "Invalid CPU core count %d, must be between 1 and %d", stat.cores, MAX_CORES);
+		exit(EXIT_FAILURE);
+	}
+
+	args.core_count = stat.cores;
+	argp_parse(&argp, argc, argv, 0, NULL, &args);
 
 	printf("%s (%s), %d cores/%d threads\n", stat.name, stat.codename, stat.cores, stat.logical_cores);
 	VLOG(LOG_INFO, "SMU FW: %s", stat.smu_fw);
@@ -95,31 +138,48 @@ int main(int argc, char **argv) {
 	if (args.do_reset) {
 		VLOG(LOG_DEBUG, "Reset all core offset");
 		ret = reset_all_core_offset(&obj);
-		if (ret != SMU_Return_OK)
-			VLOG(LOG_ERROR, "Error resetting core offset: %s", smu_return_to_str(ret));
-	} else {
-		if (args.do_voffset) {
-			VLOG(LOG_DEBUG, "Set all core offset to %d", args.voffset);
-			ret = set_all_core_offset(&obj, stat.cores, args.voffset);
-			if (ret != SMU_Return_OK)
-				VLOG(LOG_ERROR, "Error setting core offset: %s", smu_return_to_str(ret));
+		if (ret != SMU_Return_OK) {
+			VLOG(LOG_ERROR, "Error resetting all core offsets: %s", smu_return_to_str(ret));
+			exit(EXIT_FAILURE);
 		}
 	}
 
 	// print output header
 	printf("Core  voffset\n");
-	for (int i = 0; i < stat.cores; ++i) {
-		int offset = 0;
-		ret = get_core_offset(&obj, i, &offset);
+
+	for (unsigned int i = 0; i < stat.cores; ++i) {
+		// modify core
+		int do_voffset = 0, offset = 0;
+		if (args.core_args[i].do_voffset) {
+			do_voffset = 1;
+			offset = args.core_args[i].voffset;
+			VLOG(LOG_DEBUG, "Set core %d to core-specific offset of %d", i, offset);
+		} else if (args.base_args.do_voffset) {
+			do_voffset = 1;
+			offset = args.base_args.voffset;
+			VLOG(LOG_DEBUG, "Set core %d to all-core offset of %d", i, offset);
+		}
+
+		if (do_voffset) {
+			ret = set_core_offset(&obj, i, offset);
+			if (ret != SMU_Return_OK) {
+				VLOG(LOG_ERROR, "Error setting core %d offset to %d: %s", i, offset, smu_return_to_str(ret));
+				exit(EXIT_FAILURE);
+			}
+		}
+
+		// print result
+		int foffset = 0;
+		ret = get_core_offset(&obj, i, &foffset);
 		if (ret != SMU_Return_OK) {
 			VLOG(LOG_ERROR, "Error reading core %d offset: %s", i, smu_return_to_str(ret));
-			exit(-2);
+			exit(EXIT_FAILURE);
 		}
-		printf("%3d   %5d\n", i, offset);
+		printf("%3d   %5d\n", i, foffset);
 	}
 
 	// Cleanup after library use has ended.
 	smu_free(&obj);
 
-	return 0;
+	return EXIT_SUCCESS;
 }
